@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PHP THREAT RADAR // Global Cyber Intelligence & Real-Time Attack SOC</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Orbitron, Space Grotesk & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Apache ECharts 5 -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <!-- Three.js & Globe.gl for 3D Interactive Cyber Threat Map -->
+  <script src="https://unpkg.com/globe.gl@2.32.1/dist/globe.gl.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --bg-void: #030712;
+      --panel-bg: rgba(9, 14, 28, 0.78);
+      --panel-border: rgba(56, 189, 248, 0.18);
+      --neon-crimson: #ff2a5f;
+      --neon-cyan: #06b6d4;
+      --neon-purple: #a855f7;
+      --neon-emerald: #00ff9d;
+      --neon-amber: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56, 189, 248, 0.3) rgba(9, 14, 28, 0.9);
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-void);
+      background-image: 
+        radial-gradient(circle at 50% 35%, rgba(14, 165, 233, 0.12) 0%, transparent 60%),
+        radial-gradient(circle at 85% 80%, rgba(255, 42, 95, 0.08) 0%, transparent 50%),
+        linear-gradient(rgba(15, 23, 42, 0.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 23, 42, 0.35) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+      color: #e2e8f0;
+      font-family: 'Space Grotesk', sans-serif;
+      overflow-x: hidden;
+    }
+
+    .font-display {
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .soc-card {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .soc-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.7), rgba(255, 42, 95, 0.7), transparent);
+      opacity: 0.75;
+    }
+
+    .pulse-dot {
+      box-shadow: 0 0 0 0 rgba(255, 42, 95, 0.7);
+      animation: pulseCrimson 1.6s infinite;
+    }
+
+    @keyframes pulseCrimson {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 42, 95, 0.8); }
+      70% { transform: scale(1); box-shadow: 0 0 0 9px rgba(255, 42, 95, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 42, 95, 0); }
+    }
+
+    .flash-row {
+      animation: rowHighlight 0.9s ease-out;
+    }
+
+    @keyframes rowHighlight {
+      0% { background-color: rgba(255, 42, 95, 0.28); transform: translateX(-4px); }
+      100% { background-color: transparent; transform: translateX(0); }
+    }
+
+    #globe-container canvas {
+      outline: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-cyan-500 selection:text-black">
+
+  <!-- TOP COMMAND HEADER -->
+  <header class="sticky top-0 z-40 border-b border-cyan-500/20 bg-slate-950/85 backdrop-blur-xl px-4 lg:px-6 py-2.5">
+    <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand Identity -->
+      <div class="flex items-center gap-3">
+        <div class="relative flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500/20 to-cyan-500/20 border border-rose-500/40">
+          <span class="w-3 h-3 rounded-full bg-rose-500 pulse-dot"></span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-display text-lg md:text-xl font-extrabold tracking-wider text-white">
+              PHP <span class="text-rose-500">THREAT</span> RADAR
+            </h1>
+            <span class="px-2 py-0.5 text-[10px] font-mono-code font-semibold uppercase tracking-widest bg-rose-500/15 text-rose-400 border border-rose-500/30 rounded">
+              DEFCON-2 // LIVE TELEMETRY
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">
+            Global PHP Runtime, Composer, Laravel &amp; WordPress Attack Interception Center
+          </p>
+        </div>
+      </div>
+
+      <!-- Feed Status Badges -->
+      <div class="hidden xl:flex items-center gap-2.5 text-xs font-mono-code">
+        <div class="px-2.5 py-1 rounded bg-slate-900/90 border border-slate-800 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="text-slate-400">SANS DSHIELD:</span>
+          <span id="status-sans" class="text-emerald-400 font-semibold">SYNCING...</span>
+        </div>
+        <div class="px-2.5 py-1 rounded bg-slate-900/90 border border-slate-800 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          <span class="text-slate-400">NIST NVD CVE:</span>
+          <span id="status-nvd" class="text-cyan-400 font-semibold">SYNCING...</span>
+        </div>
+        <div class="px-2.5 py-1 rounded bg-slate-900/90 border border-slate-800 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span class="text-slate-400">INTL NEWS WIRE:</span>
+          <span id="status-news" class="text-amber-400 font-semibold">LIVE RSS</span>
+        </div>
+      </div>
+
+      <!-- Interactive Controls -->
+      <div class="flex items-center gap-2">
+        <button id="btn-simulate-attack" class="px-3.5 py-1.5 rounded-lg text-xs font-mono-code font-bold uppercase tracking-wider bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-lg shadow-rose-600/25 border border-rose-400/40 transition flex items-center gap-1.5 cursor-pointer">
+          <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+          Disparar Exploit no Sensor
+        </button>
+        <button id="btn-toggle-rotate" class="px-3 py-1.5 rounded-lg text-xs font-mono-code bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30 transition flex items-center gap-1.5 cursor-pointer">
+          <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+          <span id="rotate-label">Auto-Rotação: ON</span>
+        </button>
+        <button id="btn-open-sensor-modal" class="px-3 py-1.5 rounded-lg text-xs font-mono-code bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-1.5 cursor-pointer">
+          <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+          Instalar Sensor PHP
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN SOC COMMAND GRID -->
+  <main class="max-w-[1920px] w-full mx-auto px-4 lg:px-6 py-4 flex-1 flex flex-col gap-4">
+
+    <!-- TOP KPI METRICS BAR -->
+    <section class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div class="soc-card rounded-xl p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+          <span>ACUMULADO ANUAL (365 DIAS)</span>
+          <i data-lucide="shield-alert" class="w-4 h-4 text-rose-500"></i>
+        </div>
+        <div id="kpi-total-attacks" class="font-display text-xl lg:text-2xl font-bold text-white tracking-tight">
+          14,829,104
+        </div>
+        <div class="text-[11px] font-mono-code text-rose-400 mt-1 flex items-center gap-1">
+          <span>▲ +18.4% vs média anual</span>
+        </div>
+      </div>
+
+      <div class="soc-card rounded-xl p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+          <span>ATAQUES HOJE (LIVE COUNTER)</span>
+          <i data-lucide="flame" class="w-4 h-4 text-amber-400"></i>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="kpi-today-attacks" class="font-display text-xl lg:text-2xl font-bold text-amber-400">61,420</span>
+          <span class="text-xs font-mono-code text-emerald-400 animate-pulse">● LIVE</span>
+        </div>
+        <div class="text-[11px] font-mono-code text-slate-400 mt-1">
+          Atualizando no gráfico anual
+        </div>
+      </div>
+
+      <div class="soc-card rounded-xl p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+          <span>TAXA DE EXPLORAÇÃO (EPS)</span>
+          <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="kpi-eps" class="font-display text-xl lg:text-2xl font-bold text-cyan-400">42.8</span>
+          <span class="text-xs font-mono-code text-slate-400">req/seg</span>
+        </div>
+        <div class="text-[11px] font-mono-code text-cyan-300/80 mt-1">
+          Pico: 194 req/s (Botnet Mirai-PHP)
+        </div>
+      </div>
+
+      <div class="soc-card rounded-xl p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+          <span>VETOR #1 EM EXPLORAÇÃO</span>
+          <i data-lucide="cpu" class="w-4 h-4 text-rose-400"></i>
+        </div>
+        <div id="kpi-top-cve" class="font-mono-code text-base lg:text-lg font-bold text-rose-400 truncate">
+          CVE-2024-4577 (RCE)
+        </div>
+        <div class="text-[11px] font-mono-code text-slate-400 mt-1 truncate">
+          PHP-CGI Argument Injection
+        </div>
+      </div>
+
+      <div class="soc-card rounded-xl p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+          <span>ALVO PRINCIPAL</span>
+          <i data-lucide="layers" class="w-4 h-4 text-purple-400"></i>
+        </div>
+        <div id="kpi-top-stack" class="font-display text-base lg:text-lg font-bold text-purple-400 truncate">
+          Laravel / WordPress
+        </div>
+        <div class="text-[11px] font-mono-code text-slate-400 mt-1 truncate">
+          /_ignition, /.env, /xmlrpc.php
+        </div>
+      </div>
+
+      <div class="soc-card rounded-xl p-3.5">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+          <span>ORIGEM #1 DOS BOTS</span>
+          <i data-lucide="crosshair" class="w-4 h-4 text-emerald-400"></i>
+        </div>
+        <div id="kpi-top-origin" class="font-display text-base lg:text-lg font-bold text-emerald-400 truncate">
+          CN / RU / US / NL
+        </div>
+        <div class="text-[11px] font-mono-code text-slate-400 mt-1 truncate">
+          AS4134, AS14061, AS53667
+        </div>
+      </div>
+    </section>
+
+    <!-- CENTERPIECE ROW: LEFT CHARTS + 3D GLOBE + RIGHT CHARTS -->
+    <section class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
+      
+      <!-- LEFT COLUMN (3 cols on XL): Radar + Attack Category Breakdown -->
+      <div class="xl:col-span-3 flex flex-col gap-4">
+        
+        <!-- Attack Vector Radar -->
+        <div class="soc-card rounded-xl p-4 flex-1 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h2 class="font-display text-xs uppercase tracking-wider text-cyan-400 font-bold">
+                Radar de Vetores PHP (OWASP)
+              </h2>
+              <p class="text-[11px] text-slate-400">Distribuição multidimensional em tempo real</p>
+            </div>
+            <span class="px-2 py-0.5 text-[10px] font-mono-code bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 rounded">6 EIXOS</span>
+          </div>
+          <div id="chart-radar" class="w-full h-[250px] flex-1"></div>
+        </div>
+
+        <!-- Top Exploited PHP Endpoints & CVEs Horizontal Bar -->
+        <div class="soc-card rounded-xl p-4 flex-1 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h2 class="font-display text-xs uppercase tracking-wider text-rose-400 font-bold">
+                Top Exploits &amp; Rotas Atacadas
+              </h2>
+              <p class="text-[11px] text-slate-400">Assinaturas mais disparadas nos sensores</p>
+            </div>
+            <span class="px-2 py-0.5 text-[10px] font-mono-code bg-rose-500/10 text-rose-300 border border-rose-500/30 rounded">LIVE RANK</span>
+          </div>
+          <div id="chart-top-signatures" class="w-full h-[250px] flex-1"></div>
+        </div>
+
+      </div>
+
+      <!-- CENTER COLUMN (6 cols on XL): 3D Interactive Cyber Threat Globe + Real-Time Velocity Stream -->
+      <div class="xl:col-span-6 flex flex-col gap-4">
+        
+        <!-- 3D Globe Container -->
+        <div class="soc-card rounded-xl p-0 relative flex-1 min-h-[410px] flex flex-col justify-between overflow-hidden">
+          <!-- Overlay Header inside Globe -->
+          <div class="relative z-10 p-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none bg-gradient-to-b from-slate-950/90 via-slate-950/40 to-transparent">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                <h2 class="font-display text-sm uppercase tracking-wider text-white font-bold">
+                  Globo 3D de Telemetria Balística PHP
+                </h2>
+              </div>
+              <p class="text-xs text-slate-400">
+                Arcos em tempo real: Origem do Botnet/Scanner → Honeypots PHP Globais (Arraste para girar / Scroll para zoom)
+              </p>
+            </div>
+            <!-- Legend -->
+            <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono-code pointer-events-auto">
+              <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40">● RCE</span>
+              <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">● LFI/Filter</span>
+              <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">● .env Probe</span>
+              <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">● Webshell</span>
+              <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">● Sensor Real</span>
+            </div>
+          </div>
+
+          <!-- 3D WebGL Mount -->
+          <div id="globe-container" class="w-full h-[380px] flex items-center justify-center cursor-grab active:cursor-grabbing"></div>
+
+          <!-- Overlay Footer inside Globe: Latest Intercepted Banner -->
+          <div class="relative z-10 px-4 py-2.5 bg-slate-950/85 border-t border-cyan-500/20 flex flex-wrap items-center justify-between gap-2 text-xs font-mono-code">
+            <div class="flex items-center gap-2 truncate">
+              <span class="px-1.5 py-0.5 rounded bg-rose-500 text-white font-bold text-[10px]">INTERCEPTADO</span>
+              <span id="globe-live-ticker" class="text-cyan-300 truncate">
+                Inicializando malha de sensores globais...
+              </span>
+            </div>
+            <div class="text-slate-400 text-[11px] shrink-0">
+              Sensores: <span class="text-emerald-400">US • DE • BR • SG • NL • JP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Attack Velocity Area Stream -->
+        <div class="soc-card rounded-xl p-4 h-[195px] flex flex-col">
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2">
+              <h2 class="font-display text-xs uppercase tracking-wider text-cyan-400 font-bold">
+                Fluxo de Cadência Instantânea (Por Segundo)
+              </h2>
+              <span class="text-[11px] font-mono-code text-slate-400">| RCE vs LFI/.env vs Webshells/SQLi</span>
+            </div>
+            <span class="text-[11px] font-mono-code text-emerald-400">ATUALIZAÇÃO: 1s</span>
+          </div>
+          <div id="chart-velocity" class="w-full flex-1"></div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN (3 cols on XL): Ecosystem Nightingales + NIST CVE Feed -->
+      <div class="xl:col-span-3 flex flex-col gap-4">
+        
+        <!-- Ecosystem Target Donut / Nightingale Rose -->
+        <div class="soc-card rounded-xl p-4 flex-1 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h2 class="font-display text-xs uppercase tracking-wider text-purple-400 font-bold">
+                Ecossistema PHP Alvo (Rose Chart)
+              </h2>
+              <p class="text-[11px] text-slate-400">Proporção por Framework / Runtime</p>
+            </div>
+            <span class="px-2 py-0.5 text-[10px] font-mono-code bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded">STACK</span>
+          </div>
+          <div id="chart-ecosystem" class="w-full h-[240px] flex-1"></div>
+        </div>
+
+        <!-- NIST NVD Official PHP CVE Advisories -->
+        <div class="soc-card rounded-xl p-4 flex-1 flex flex-col max-h-[290px]">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h2 class="font-display text-xs uppercase tracking-wider text-amber-400 font-bold">
+                Feed Oficial de CVEs PHP (NIST NVD)
+              </h2>
+              <p class="text-[11px] text-slate-400">Vulnerabilidades críticas rastreadas</p>
+            </div>
+            <span class="px-2 py-0.5 text-[10px] font-mono-code bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded">CVSS 9.8+</span>
+          </div>
+          <div id="cve-feed-list" class="overflow-y-auto space-y-2 pr-1 text-xs flex-1">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- NEW ROW: 1-YEAR HISTORICAL TIMELINE (UP TO TODAY & LIVE UPDATING) + INTERNATIONAL CYBERSECURITY NEWS -->
+    <section class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
+
+      <!-- 365-DAY HISTORICAL ATTACK TIMELINE (7 cols on XL) -->
+      <div class="xl:col-span-7 soc-card rounded-xl p-4 flex flex-col justify-between min-h-[380px]">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div class="flex items-center gap-2.5">
+            <i data-lucide="calendar-clock" class="w-5 h-5 text-cyan-400"></i>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="font-display text-xs md:text-sm uppercase tracking-wider text-white font-bold">
+                  Série Temporal de Ataques PHP — Últimos 365 Dias até Hoje
+                </h2>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-code font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                  ● HOJE ATUALIZANDO AO VIVO
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400">
+                Histórico diário completo com seletor de zoom (DataZoom), ondas de campanhas (RCE, LFI/.env, Webshells) e incremento em tempo real na barra de hoje
+              </p>
+            </div>
+          </div>
+
+          <!-- Quick Range Filter Buttons -->
+          <div class="flex items-center gap-1.5 font-mono-code text-[11px]">
+            <button data-range="30" class="btn-timeline-range px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 cursor-pointer transition">
+              30 Dias
+            </button>
+            <button data-range="90" class="btn-timeline-range px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 cursor-pointer transition">
+              90 Dias
+            </button>
+            <button data-range="180" class="btn-timeline-range px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 cursor-pointer transition">
+              6 Meses
+            </button>
+            <button data-range="365" class="btn-timeline-range px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold cursor-pointer transition">
+              1 Ano Completo
+            </button>
+          </div>
+        </div>
+
+        <!-- ECharts 365-Day Interactive Timeline -->
+        <div id="chart-annual-timeline" class="w-full h-[310px] flex-1"></div>
+      </div>
+
+      <!-- DEDICATED INTERNATIONAL CYBERSECURITY NEWS SECTION (5 cols on XL) -->
+      <div class="xl:col-span-5 soc-card rounded-xl p-4 flex flex-col max-h-[395px]">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div class="flex items-center gap-2.5">
+            <i data-lucide="newspaper" class="w-5 h-5 text-amber-400"></i>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="font-display text-xs md:text-sm uppercase tracking-wider text-white font-bold">
+                  Notícias Internacionais de Ataques &amp; Threat Intel
+                </h2>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-code bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  GLOBAL PRESS WIRE
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400">
+                Cobertura internacional ao vivo (The Hacker News, BleepingComputer, SANS ISC, CISA KEV &amp; Wordfence)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- International News Feed Container -->
+        <div id="intl-news-list" class="overflow-y-auto space-y-2.5 pr-1 flex-1">
+          <!-- Populated dynamically via app.js -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- BOTTOM ROW: LIVE PAYLOAD INSPECTOR & PACKET SNIFFER TERMINAL -->
+    <section class="soc-card rounded-xl p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div class="flex items-center gap-2.5">
+          <i data-lucide="terminal-square" class="w-5 h-5 text-rose-500"></i>
+          <div>
+            <h2 class="font-display text-xs md:text-sm uppercase tracking-wider text-white font-bold">
+              Inspetor de Payloads PHP &amp; Sniffer de Requisições Maliciosas Ao Vivo
+            </h2>
+            <p class="text-[11px] text-slate-400">
+              Inspeção profunda de pacotes HTTP (DPI) mostrando URI, CVE associada, IP de origem (DShield/Sensores) e código PHP injetado
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="payload-filter" type="text" placeholder="Filtrar por CVE, IP, .env, eval-stdin, país..." 
+            class="px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-700 text-xs font-mono-code text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-64" />
+          <button id="btn-pause-stream" class="px-3 py-1 rounded-lg text-xs font-mono-code bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 cursor-pointer">
+            Pausar Feed
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto max-h-[280px] overflow-y-auto rounded-lg border border-slate-800/90 bg-slate-950/70">
+        <table class="w-full text-left border-collapse font-mono-code text-xs">
+          <thead class="sticky top-0 bg-slate-900/95 text-slate-400 text-[11px] uppercase border-b border-slate-800 z-10">
+            <tr>
+              <th class="py-2.5 px-3">Horário (UTC)</th>
+              <th class="py-2.5 px-3">IP Atacante / ASN</th>
+              <th class="py-2.5 px-3">Origem → Sensor</th>
+              <th class="py-2.5 px-3">Vetor / CVE</th>
+              <th class="py-2.5 px-3">Alvo PHP</th>
+              <th class="py-2.5 px-3">URI &amp; Payload Capturado (DPI)</th>
+              <th class="py-2.5 px-3 text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="live-attack-tbody" class="divide-y divide-slate-800/60">
+            <!-- Populated in real-time -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: COMO PLUGAR SEU SERVIDOR PHP REAL -->
+  <div id="sensor-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="soc-card max-w-2xl w-full rounded-2xl p-6 border border-cyan-500/40">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <i data-lucide="cpu" class="w-5 h-5 text-emerald-400"></i>
+          <h3 class="font-display text-base font-bold text-white">
+            Agente Sensor PHP Real (`honeypot-sensor.php`)
+          </h3>
+        </div>
+        <button id="btn-close-sensor-modal" class="text-slate-400 hover:text-white cursor-pointer">✕</button>
+      </div>
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <p>
+          Já geramos na pasta do seu projeto o arquivo <code class="text-emerald-400 font-mono-code">honeypot-sensor.php</code>. Você pode colocá-lo em qualquer servidor PHP real (WordPress, Laravel, Symfony ou VPS Honeypot) para transmitir ataques reais diretamente para este globo 3D!
+        </p>
+        <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono-code text-[11px] text-cyan-300 overflow-x-auto">
+          <div># 1. Ou teste agora mesmo enviando um ataque via terminal PowerShell / cURL:</div>
+          <div class="mt-1 text-emerald-400">
+            Invoke-RestMethod -Uri "http://localhost:4000/api/ingest" -Method POST -ContentType "application/json" -Body '{"sourceIp":"185.220.101.9","originCountry":"Russia","originCode":"RU","cve":"CVE-2024-4577","category":"RCE","attackName":"Live Exploit Test via Terminal","uri":"/index.php?%ADd+allow_url_include=1","payload":"&lt;?php system(\"whoami\"); ?&gt;"}'
+          </div>
+        </div>
+        <p class="text-slate-400">
+          Você também pode clicar no botão <strong class="text-rose-400">"Disparar Exploit no Sensor"</strong> no topo da tela a qualquer momento para simular um ataque real chegando no endpoint <code class="font-mono-code">/api/ingest</code>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPLICATION SCRIPT -->
+  <script src="/app.js"></script>
+</body>
+</html>
