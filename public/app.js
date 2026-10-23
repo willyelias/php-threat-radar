@@ -129,6 +129,17 @@ document.querySelectorAll('[data-goto-tab]').forEach(el => {
   });
 });
 
+// Support ?tab= URL parameter & ?drawer=open for direct deep-linking and automated screenshots
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('tab')) {
+  setTimeout(() => switchTab(urlParams.get('tab')), 250);
+}
+if (urlParams.get('drawer') === 'open') {
+  setTimeout(() => {
+    if (allEvents.length > 0) openForensicDrawer(allEvents[0]);
+  }, 1200);
+}
+
 // ============================================================================
 // 2. CHECKPOINT THREATMAP-STYLE SMOOTH 3D GLOBE (No Blinking / No Reset!)
 // ============================================================================
@@ -424,20 +435,20 @@ function renderCountryLeaderboards() {
     },
     series: [
       {
-        name: '🔥 Ataques Disparados (Origem)',
+        name: 'Ataques Disparados (Origem)',
         type: 'bar',
         barGap: '12%',
         itemStyle: { color: '#ff2a5f', borderRadius: [4, 4, 0, 0] },
         data: sentData
       },
       {
-        name: '🎯 Ataques Sofridos (Mais Afetados)',
+        name: 'Ataques Sofridos (Mais Afetados)',
         type: 'bar',
         itemStyle: { color: '#00ff9d', borderRadius: [4, 4, 0, 0] },
         data: receivedData
       },
       {
-        name: '🤖 Volume Guiado por IA',
+        name: 'Volume Guiado por IA',
         type: 'line',
         smooth: true,
         symbolSize: 7,
@@ -497,6 +508,7 @@ function renderMonthlyEscalationChart() {
     legend: {
       top: 0,
       left: 0,
+      itemGap: 16,
       textStyle: { color: '#cbd5e1', fontFamily: 'JetBrains Mono', fontSize: 10 },
       itemWidth: 11,
       itemHeight: 7
@@ -520,7 +532,7 @@ function renderMonthlyEscalationChart() {
     },
     series: [
       {
-        name: '⚙️ Bots Tradicionais',
+        name: 'Bots Tradicionais',
         type: 'bar',
         stack: 'monthly',
         barWidth: '52%',
@@ -528,7 +540,7 @@ function renderMonthlyEscalationChart() {
         data: legacyData
       },
       {
-        name: '🤖 Ataques por Agentes IA',
+        name: 'Ataques por Agentes IA',
         type: 'bar',
         stack: 'monthly',
         barWidth: '52%',
@@ -643,7 +655,7 @@ function initAnnualTimelineChart() {
     },
     series: [
       {
-        name: '⚙️ Bots Convencionais (Baseline)',
+        name: 'Bots Convencionais (Baseline)',
         type: 'line',
         stack: 'annual',
         smooth: true,
@@ -653,7 +665,7 @@ function initAnnualTimelineChart() {
         data: legacySeries
       },
       {
-        name: '🤖 Agentes de IA Autônomos (Escalada Recente)',
+        name: 'Agentes de IA Autônomos (Escalada Recente)',
         type: 'line',
         stack: 'annual',
         smooth: true,
@@ -754,7 +766,7 @@ function updateTopSignaturesChart() {
   const entries = Object.entries(signatureCounts).sort((a, b) => a[1] - b[1]);
   topSigChart.setOption({
     backgroundColor: 'transparent',
-    grid: { top: 8, bottom: 18, left: 142, right: 38 },
+    grid: { top: 8, bottom: 18, left: 175, right: 38 },
     xAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(148,163,184,0.08)' } }, axisLabel: { color: '#64748b', fontSize: 9 } },
     yAxis: { type: 'category', data: entries.map(e => e[0]), axisLabel: { color: '#cbd5e1', fontFamily: 'JetBrains Mono', fontSize: 10 } },
     series: [{
