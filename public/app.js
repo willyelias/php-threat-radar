@@ -1,5 +1,5 @@
 /* ============================================================================
- * PHP THREAT RADAR v2.0 — 3D WebGL Globe + AI Threat Attribution + SOC Tabs
+ * PHP THREAT RADAR v3.0 — CheckPoint ThreatMap Smooth Arcs + Geopolitical Tab
  * ============================================================================ */
 
 lucide.createIcons();
@@ -15,6 +15,38 @@ let activeRings = [];
 let honeypotPoints = [];
 let yearlyHistoryData = [];
 let monthlyEscalationData = [];
+
+// Country Flag Helper
+const COUNTRY_FLAGS = {
+  CN: '🇨🇳', RU: '🇷🇺', US: '🇺🇸', NL: '🇳🇱', VN: '🇻🇳', BR: '🇧🇷',
+  IN: '🇮🇳', DE: '🇩🇪', IR: '🇮🇷', KR: '🇰🇷', RO: '🇷🇴', FR: '🇫🇷',
+  SG: '🇸🇬', JP: '🇯🇵', ID: '🇮🇩', UA: '🇺🇦', GB: '🇬🇧'
+};
+
+// Geopolitical Tallies: Top Attacking Countries (Source) vs Most Affected Countries (Targets)
+const attackerCountries = {
+  CN: { code: 'CN', name: 'China', count: 42850, aiCount: 29400, topAsn: 'AS4134 Chinanet' },
+  RU: { code: 'RU', name: 'Russia', count: 38120, aiCount: 26800, topAsn: 'AS12389 Rostelecom' },
+  US: { code: 'US', name: 'United States', count: 31940, aiCount: 21500, topAsn: 'AS14061 DigitalOcean' },
+  NL: { code: 'NL', name: 'Netherlands', count: 24610, aiCount: 17100, topAsn: 'AS53667 FranTech' },
+  VN: { code: 'VN', name: 'Vietnam', count: 19450, aiCount: 11800, topAsn: 'AS45899 VNPT-AS' },
+  IR: { code: 'IR', name: 'Iran', count: 16820, aiCount: 11400, topAsn: 'AS44244 Irancell' },
+  DE: { code: 'DE', name: 'Germany', count: 15290, aiCount: 10100, topAsn: 'AS24940 Hetzner' },
+  IN: { code: 'IN', name: 'India', count: 13840, aiCount: 8400, topAsn: 'AS45609 Bharti-Airtel' },
+  BR: { code: 'BR', name: 'Brazil', count: 12190, aiCount: 7200, topAsn: 'AS28573 Claro-BR' },
+  RO: { code: 'RO', name: 'Romania', count: 10840, aiCount: 7150, topAsn: 'AS9009 M247-Europe' }
+};
+
+const affectedTargetCountries = {
+  US: { code: 'US', name: 'United States', count: 54920, aiCount: 37900, stack: 'Laravel / WordPress / Cloud APIs' },
+  BR: { code: 'BR', name: 'Brazil', count: 41380, aiCount: 28100, stack: 'Gov PHP / E-commerce / WordPress' },
+  DE: { code: 'DE', name: 'Germany', count: 36740, aiCount: 24900, stack: 'Symfony / Shopware / Core PHP' },
+  SG: { code: 'SG', name: 'Singapore', count: 29850, aiCount: 20400, stack: 'Fintech APIs / Laravel Octane' },
+  NL: { code: 'NL', name: 'Netherlands', count: 25410, aiCount: 16900, stack: 'Hosting Clusters / Plesk PHP' },
+  JP: { code: 'JP', name: 'Japan', count: 22980, aiCount: 15800, stack: 'Enterprise PHP-CGI / EC-Cube' },
+  FR: { code: 'FR', name: 'France', count: 18420, aiCount: 12100, stack: 'Symfony / PrestaShop' },
+  GB: { code: 'GB', name: 'United Kingdom', count: 16910, aiCount: 11300, stack: 'Laravel / Drupal / WooCommerce' }
+};
 
 // Category tallies for dynamic charts
 const categoryCounts = {
@@ -48,7 +80,7 @@ const signatureCounts = {
 };
 
 // ============================================================================
-// 1. TAB NAVIGATION CONTROLLER (Clean Progressive Disclosure)
+// 1. TAB NAVIGATION CONTROLLER
 // ============================================================================
 const tabButtons = document.querySelectorAll('.nav-tab');
 const tabPanels = document.querySelectorAll('.tab-panel');
@@ -73,10 +105,10 @@ function switchTab(targetTabId) {
     }
   });
 
-  // Resize visible charts after tab switch
   setTimeout(() => {
     resizeGlobe();
     monthlyEscalationChart?.resize();
+    geopoliticalMatrixChart?.resize();
     annualTimelineChart?.resize();
     radarChart?.resize();
     topSigChart?.resize();
@@ -97,7 +129,7 @@ document.querySelectorAll('[data-goto-tab]').forEach(el => {
 });
 
 // ============================================================================
-// 2. INITIALIZE 3D INTERACTIVE CYBER THREAT GLOBE (Globe.gl / Three.js)
+// 2. CHECKPOINT THREATMAP-STYLE SMOOTH 3D GLOBE (No Blinking / No Reset!)
 // ============================================================================
 const globeContainer = document.getElementById('globe-container');
 const world = Globe()(globeContainer)
@@ -107,19 +139,25 @@ const world = Globe()(globeContainer)
   .showAtmosphere(true)
   .atmosphereColor('#06b6d4')
   .atmosphereAltitude(0.18)
-  .pointOfView({ lat: 22, lng: 10, altitude: 2.02 })
-  .arcsData([])
+  .pointOfView({ lat: 20, lng: 8, altitude: 2.02 })
+  // Key to CheckPoint ThreatMap smoothness: disable arc transition re-interpolation and use long smooth laser beams!
+  .arcsTransitionDuration(0)
+  .arcsData(activeArcs)
   .arcStartLat(d => d.srcLat)
   .arcStartLng(d => d.srcLng)
   .arcEndLat(d => d.destLat)
   .arcEndLng(d => d.destLng)
-  .arcColor(d => d.isAiDriven ? ['#a855f7', '#00ff9d', '#a855f7'] : [d.color || '#ff2a5f', '#ffffff', d.color || '#ff2a5f'])
-  .arcAltitudeAutoScale(0.42)
-  .arcStroke(d => d.isAiDriven ? 0.95 : 0.65)
-  .arcDashLength(0.45)
-  .arcDashGap(0.2)
-  .arcDashInitialGap(() => Math.random())
-  .arcDashAnimateTime(1300)
+  .arcColor(d => d.isAiDriven
+    ? ['rgba(168, 85, 247, 0.15)', '#c084fc', '#00ff9d']
+    : ['rgba(255, 42, 95, 0.15)', d.color || '#ff2a5f', '#38bdf8']
+  )
+  .arcAltitudeAutoScale(0.38)
+  .arcStroke(d => d.isAiDriven ? 0.85 : 0.6)
+  // Smooth continuous CheckPoint missile trail (single long comet beam per arc)
+  .arcDashLength(0.9)
+  .arcDashGap(2.2)
+  .arcDashInitialGap(0)
+  .arcDashAnimateTime(2600)
   .arcLabel(d => `
     <div style="background: rgba(3,7,18,0.94); border: 1px solid ${d.isAiDriven ? '#a855f7' : '#ff2a5f'}; padding: 9px 11px; border-radius: 10px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #f8fafc;">
       <div style="color:${d.isAiDriven ? '#c084fc' : '#fb7185'}; font-weight:700;">
@@ -130,19 +168,20 @@ const world = Globe()(globeContainer)
       <div style="color:#94a3b8; margin-top:3px;">${d.aiType}</div>
     </div>
   `)
-  .ringsData([])
+  .ringsData(activeRings)
   .ringLat(d => d.lat)
   .ringLng(d => d.lng)
-  .ringColor(d => t => `${d.color}${Math.round((1 - t) * 255).toString(16).padStart(2, '0')}`)
-  .ringMaxRadius(5.5)
-  .ringPropagationSpeed(2.6)
-  .ringRepeatPeriod(700)
+  .ringColor(d => t => `${d.color}${Math.round((1 - t) * 210).toString(16).padStart(2, '0')}`)
+  .ringMaxRadius(4.8)
+  .ringPropagationSpeed(2.1)
+  .ringRepeatPeriod(950)
+  .pointsTransitionDuration(0)
   .pointsData([])
   .pointLat(d => d.lat)
   .pointLng(d => d.lng)
   .pointColor(d => d.color || '#00ff9d')
-  .pointAltitude(0.02)
-  .pointRadius(0.55)
+  .pointAltitude(0.015)
+  .pointRadius(0.5)
   .pointLabel(d => `
     <div style="background: rgba(3,7,18,0.92); border: 1px solid #00ff9d; padding: 6px 9px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #e2e8f0;">
       <strong style="color:#00ff9d;">● HONEYPOT PHP SENSOR</strong><br/>
@@ -152,7 +191,7 @@ const world = Globe()(globeContainer)
 
 const controls = world.controls();
 controls.autoRotate = true;
-controls.autoRotateSpeed = 0.65;
+controls.autoRotateSpeed = 0.55;
 controls.enableZoom = true;
 
 function resizeGlobe() {
@@ -166,8 +205,181 @@ function resizeGlobe() {
 window.addEventListener('resize', resizeGlobe);
 setTimeout(resizeGlobe, 100);
 
+// Smooth lifecycle helper: adds an arc that glides once from origin to destination and expires cleanly without resetting existing arcs
+function spawnSmoothCheckPointArc(evt) {
+  activeArcs.push(evt);
+  if (activeArcs.length > 18) {
+    activeArcs.shift();
+  }
+  world.arcsData(activeArcs);
+
+  const ringObj = { lat: evt.destLat, lng: evt.destLng, color: evt.isAiDriven ? '#a855f7' : '#ff2a5f' };
+  activeRings.push(ringObj);
+  if (activeRings.length > 12) {
+    activeRings.shift();
+  }
+  world.ringsData(activeRings);
+}
+
 // ============================================================================
-// 3. APACHE ECHARTS: MONTHLY ESCALATION ("Mais ataques nos últimos meses do que antes")
+// 3. GEOPOLITICAL LEADERBOARDS (Top Attacking Countries vs Most Affected)
+// ============================================================================
+const geopoliticalMatrixChart = echarts.init(document.getElementById('chart-geopolitical-matrix'));
+
+function renderCountryLeaderboards() {
+  // 1. Top Origins (Where attacks come from)
+  const sortedOrigins = Object.values(attackerCountries).sort((a, b) => b.count - a.count);
+  const maxOrigin = sortedOrigins[0]?.count || 1;
+
+  // Floating HUD on Globe (Top 4)
+  const hudOrigins = document.getElementById('hud-top-origins');
+  if (hudOrigins) {
+    hudOrigins.innerHTML = sortedOrigins.slice(0, 4).map((c, i) => `
+      <div class="flex items-center justify-between text-slate-200">
+        <span class="truncate">${i + 1}. ${COUNTRY_FLAGS[c.code] || '🌐'} ${c.name}</span>
+        <span class="text-rose-400 font-bold">${(c.count / 1000).toFixed(1)}k</span>
+      </div>
+    `).join('');
+  }
+
+  // Full Leaderboard in Tab 2
+  const originsContainer = document.getElementById('country-origins-leaderboard');
+  if (originsContainer) {
+    originsContainer.innerHTML = sortedOrigins.slice(0, 8).map((c, idx) => {
+      const pctWidth = Math.round((c.count / maxOrigin) * 100);
+      const aiShare = Math.round((c.aiCount / c.count) * 100);
+      return `
+        <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800/90">
+          <div class="flex items-center justify-between text-xs font-mono-code mb-1.5">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded bg-rose-500/20 text-rose-300 font-bold flex items-center justify-center text-[10px]">#${idx + 1}</span>
+              <span class="text-sm">${COUNTRY_FLAGS[c.code] || '🌐'}</span>
+              <span class="font-bold text-white">${c.name}</span>
+              <span class="text-[10px] text-slate-400">(${c.topAsn})</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px]">🤖 ${aiShare}% IA</span>
+              <span class="font-bold text-rose-400">${c.count.toLocaleString('pt-BR')}</span>
+            </div>
+          </div>
+          <div class="w-full h-2 rounded-full bg-slate-950 overflow-hidden">
+            <div class="h-full rounded-full bg-gradient-to-r from-rose-500 to-purple-500 progress-bar-fill" style="width: ${pctWidth}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 2. Most Affected Target Countries
+  const sortedTargets = Object.values(affectedTargetCountries).sort((a, b) => b.count - a.count);
+  const maxTarget = sortedTargets[0]?.count || 1;
+
+  // Floating HUD on Globe (Top 4)
+  const hudTargets = document.getElementById('hud-top-targets');
+  if (hudTargets) {
+    hudTargets.innerHTML = sortedTargets.slice(0, 4).map((c, i) => `
+      <div class="flex items-center justify-between text-slate-200">
+        <span class="truncate">${i + 1}. ${COUNTRY_FLAGS[c.code] || '🌐'} ${c.name}</span>
+        <span class="text-emerald-400 font-bold">${(c.count / 1000).toFixed(1)}k</span>
+      </div>
+    `).join('');
+  }
+
+  // Full Leaderboard in Tab 2
+  const targetsContainer = document.getElementById('country-targets-leaderboard');
+  if (targetsContainer) {
+    targetsContainer.innerHTML = sortedTargets.slice(0, 8).map((c, idx) => {
+      const pctWidth = Math.round((c.count / maxTarget) * 100);
+      const aiShare = Math.round((c.aiCount / c.count) * 100);
+      return `
+        <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800/90">
+          <div class="flex items-center justify-between text-xs font-mono-code mb-1.5">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded bg-emerald-500/20 text-emerald-300 font-bold flex items-center justify-center text-[10px]">#${idx + 1}</span>
+              <span class="text-sm">${COUNTRY_FLAGS[c.code] || '🌐'}</span>
+              <span class="font-bold text-white">${c.name}</span>
+              <span class="text-[10px] text-slate-400 truncate max-w-[160px]">(${c.stack})</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px]">🤖 ${aiShare}% IA</span>
+              <span class="font-bold text-emerald-400">${c.count.toLocaleString('pt-BR')}</span>
+            </div>
+          </div>
+          <div class="w-full h-2 rounded-full bg-slate-950 overflow-hidden">
+            <div class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 progress-bar-fill" style="width: ${pctWidth}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 3. Update Geopolitical Matrix EChart
+  const keyNations = ['US', 'CN', 'RU', 'BR', 'DE', 'NL', 'SG', 'IN', 'VN', 'FR'];
+  const nationLabels = keyNations.map(code => `${COUNTRY_FLAGS[code] || ''} ${code}`);
+  const sentData = keyNations.map(code => attackerCountries[code]?.count || 8400);
+  const receivedData = keyNations.map(code => affectedTargetCountries[code]?.count || 9200);
+  const aiSentData = keyNations.map(code => attackerCountries[code]?.aiCount || 5100);
+
+  geopoliticalMatrixChart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: 'rgba(9, 14, 28, 0.95)',
+      borderColor: '#06b6d4',
+      textStyle: { color: '#f8fafc', fontFamily: 'JetBrains Mono', fontSize: 11 }
+    },
+    legend: {
+      top: 0,
+      left: 0,
+      textStyle: { color: '#cbd5e1', fontFamily: 'JetBrains Mono', fontSize: 10 }
+    },
+    grid: { top: 34, bottom: 26, left: 54, right: 16 },
+    xAxis: {
+      type: 'category',
+      data: nationLabels,
+      axisLine: { lineStyle: { color: 'rgba(148,163,184,0.25)' } },
+      axisLabel: { color: '#e2e8f0', fontFamily: 'JetBrains Mono', fontSize: 11 }
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: 'rgba(148,163,184,0.08)' } },
+      axisLabel: {
+        color: '#64748b',
+        fontFamily: 'JetBrains Mono',
+        fontSize: 10,
+        formatter: v => `${(v / 1000).toFixed(0)}k`
+      }
+    },
+    series: [
+      {
+        name: '🔥 Ataques Disparados (Origem)',
+        type: 'bar',
+        barGap: '12%',
+        itemStyle: { color: '#ff2a5f', borderRadius: [4, 4, 0, 0] },
+        data: sentData
+      },
+      {
+        name: '🎯 Ataques Sofridos (Mais Afetados)',
+        type: 'bar',
+        itemStyle: { color: '#00ff9d', borderRadius: [4, 4, 0, 0] },
+        data: receivedData
+      },
+      {
+        name: '🤖 Volume Guiado por IA',
+        type: 'line',
+        smooth: true,
+        symbolSize: 7,
+        lineStyle: { width: 2.5, color: '#a855f7' },
+        itemStyle: { color: '#a855f7' },
+        data: aiSentData
+      }
+    ]
+  });
+}
+
+// ============================================================================
+// 4. MONTHLY ESCALATION CHART ("Mais ataques nos últimos meses do que antes")
 // ============================================================================
 const monthlyEscalationChart = echarts.init(document.getElementById('chart-monthly-escalation'));
 
@@ -179,7 +391,6 @@ function renderMonthlyEscalationChart() {
   const aiData = monthlyEscalationData.map(m => m.aiDriven);
   const totalData = monthlyEscalationData.map(m => m.total);
 
-  // Calculate Surge % between first 6 months ("Antes") and last 6 months ("Últimos Meses")
   const firstHalfSum = monthlyEscalationData.slice(0, 6).reduce((a, b) => a + b.total, 0);
   const secondHalfSum = monthlyEscalationData.slice(6).reduce((a, b) => a + b.total, 0);
   const surgePct = (((secondHalfSum - firstHalfSum) / firstHalfSum) * 100).toFixed(1);
@@ -242,7 +453,7 @@ function renderMonthlyEscalationChart() {
         type: 'bar',
         stack: 'monthly',
         barWidth: '52%',
-        itemStyle: { color: 'rgba(6, 182, 212, 0.7)', borderRadius: [0, 0, 0, 0] },
+        itemStyle: { color: 'rgba(6, 182, 212, 0.7)' },
         data: legacyData
       },
       {
@@ -295,7 +506,7 @@ function renderMonthlyEscalationChart() {
 }
 
 // ============================================================================
-// 4. SECONDARY CHARTS (TAB 2: 365-DAY TIMELINE + OWASP RADAR + TOP SIG + ROSE)
+// 5. SECONDARY CHARTS (TAB 3: 365-DAY TIMELINE + OWASP RADAR + TOP SIG + ROSE)
 // ============================================================================
 const annualTimelineChart = echarts.init(document.getElementById('chart-annual-timeline'));
 let currentZoomStart = 0;
@@ -443,7 +654,6 @@ document.querySelectorAll('.btn-timeline-range').forEach(btn => {
   });
 });
 
-// Radar Chart
 const radarChart = echarts.init(document.getElementById('chart-radar'));
 radarChart.setOption({
   backgroundColor: 'transparent',
@@ -468,7 +678,6 @@ radarChart.setOption({
   }]
 });
 
-// Top Signatures Bar Chart
 const topSigChart = echarts.init(document.getElementById('chart-top-signatures'));
 function updateTopSignaturesChart() {
   const entries = Object.entries(signatureCounts).sort((a, b) => a[1] - b[1]);
@@ -488,7 +697,6 @@ function updateTopSignaturesChart() {
 }
 updateTopSignaturesChart();
 
-// Ecosystem Rose Chart
 const ecosystemChart = echarts.init(document.getElementById('chart-ecosystem'));
 function updateEcosystemChart() {
   const palette = ['#ff2a5f', '#06b6d4', '#a855f7', '#f59e0b', '#00ff9d', '#3b82f6'];
@@ -509,7 +717,7 @@ function updateEcosystemChart() {
 updateEcosystemChart();
 
 // ============================================================================
-// 5. FORENSIC SLIDE-OVER DRAWER (1-Click Detailed Inspection + AI Attribution)
+// 6. FORENSIC SLIDE-OVER DRAWER
 // ============================================================================
 const drawer = document.getElementById('forensic-drawer');
 
@@ -550,11 +758,11 @@ function openForensicDrawer(evt) {
         <div class="text-[10px] text-slate-400 uppercase">IP de Origem &amp; ASN</div>
         <div class="text-sm font-bold text-white mt-0.5">${evt.sourceIp}</div>
         <div class="text-[11px] text-cyan-400">${evt.originAsn}</div>
-        <div class="text-[11px] text-slate-400">${evt.originCity}, ${evt.originCountry}</div>
+        <div class="text-[11px] text-slate-400">${COUNTRY_FLAGS[evt.originCode] || ''} ${evt.originCity}, ${evt.originCountry}</div>
       </div>
       <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
         <div class="text-[10px] text-slate-400 uppercase">Honeypot PHP Alvo</div>
-        <div class="text-sm font-bold text-emerald-400 mt-0.5">${evt.destCity} (${evt.destCode})</div>
+        <div class="text-sm font-bold text-emerald-400 mt-0.5">${COUNTRY_FLAGS[evt.destCode] || ''} ${evt.destCity} (${evt.destCode})</div>
         <div class="text-[11px] text-slate-300">${evt.targetStack}</div>
         <div class="text-[11px] text-slate-400">Status HTTP: ${evt.httpStatus} (${evt.mitigation})</div>
       </div>
@@ -596,40 +804,53 @@ document.getElementById('globe-live-ticker')?.addEventListener('click', () => {
 });
 
 // ============================================================================
-// 6. RENDER COMPACT FEED, DPI TABLE, NEWS & CVES
+// 7. ULTRA-SMOOTH COMPACT FEED (NO BLINKING!) & DPI TABLE
 // ============================================================================
 function getAiBadge(evt) {
   if (evt.isAiDriven) {
-    return `<span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold text-[10px] inline-flex items-center gap-1">
-      🤖 IA Autônoma (${evt.aiConfidence}%)
+    return `<span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold text-[10px] inline-flex items-center gap-1 shrink-0">
+      🤖 IA (${evt.aiConfidence}%)
     </span>`;
   }
-  return `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] inline-flex items-center gap-1">
-    ⚙️ Bot Tradicional
+  return `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] inline-flex items-center gap-1 shrink-0">
+    ⚙️ Bot
   </span>`;
 }
 
-function renderCompactLiveFeed() {
+function createCompactRowElement(evt, animate = true) {
+  const row = document.createElement('div');
+  row.className = `p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800/90 border border-slate-800/90 hover:border-purple-500/40 flex items-center justify-between gap-2 cursor-pointer transition ${animate ? 'smooth-slide-in' : ''}`;
+  row.innerHTML = `
+    <div class="flex items-center gap-2 truncate">
+      ${getAiBadge(evt)}
+      <span class="font-bold text-amber-300 shrink-0">${evt.cve}</span>
+      <span class="text-slate-300 truncate">${COUNTRY_FLAGS[evt.originCode] || ''} ${evt.sourceIp} (${evt.originCode}) → ${COUNTRY_FLAGS[evt.destCode] || ''} ${evt.destCity}</span>
+    </div>
+    <span class="text-[10px] text-cyan-400 shrink-0">Detalhar →</span>
+  `;
+  row.addEventListener('click', () => openForensicDrawer(evt));
+  return row;
+}
+
+// Initial seed of compact feed
+function initCompactLiveFeed() {
   const container = document.getElementById('compact-live-feed');
   if (!container) return;
-
-  container.innerHTML = allEvents.slice(0, 8).map((evt, idx) => `
-    <div data-event-idx="${idx}" class="compact-event-row p-2 rounded-xl bg-slate-900/85 hover:bg-slate-800/90 border border-slate-800/90 hover:border-purple-500/40 flex items-center justify-between gap-2 cursor-pointer transition ${idx === 0 ? 'flash-row' : ''}">
-      <div class="flex items-center gap-2 truncate">
-        ${getAiBadge(evt)}
-        <span class="font-bold text-amber-300">${evt.cve}</span>
-        <span class="text-slate-300 truncate">${evt.sourceIp} (${evt.originCode}) → ${evt.destCity}</span>
-      </div>
-      <span class="text-[10px] text-cyan-400 shrink-0">Detalhar →</span>
-    </div>
-  `).join('');
-
-  container.querySelectorAll('.compact-event-row').forEach(row => {
-    row.addEventListener('click', () => {
-      const idx = Number(row.getAttribute('data-event-idx'));
-      openForensicDrawer(allEvents[idx]);
-    });
+  container.innerHTML = '';
+  allEvents.slice(0, 5).forEach(evt => {
+    container.appendChild(createCompactRowElement(evt, false));
   });
+}
+
+// Smoothly prepend single item without wiping DOM (eliminates blinking!)
+function prependSmoothCompactFeedItem(evt) {
+  const container = document.getElementById('compact-live-feed');
+  if (!container) return;
+  const newRow = createCompactRowElement(evt, true);
+  container.prepend(newRow);
+  while (container.children.length > 5) {
+    container.removeChild(container.lastElementChild);
+  }
 }
 
 function renderAttackTable() {
@@ -642,9 +863,9 @@ function renderAttackTable() {
     if (!filterKeyword) return true;
     const hay = `${evt.sourceIp} ${evt.originCountry} ${evt.cve} ${evt.attackName} ${evt.uri} ${evt.payload} ${evt.aiType}`.toLowerCase();
     return hay.includes(filterKeyword.toLowerCase());
-  }).slice(0, 32);
+  }).slice(0, 30);
 
-  tbody.innerHTML = filtered.map((evt, index) => {
+  tbody.innerHTML = filtered.map((evt) => {
     const timeStr = new Date(evt.timestamp).toLocaleTimeString('pt-BR', { hour12: false });
     const escapedPayload = (evt.payload || '')
       .replace(/&/g, '&amp;')
@@ -652,7 +873,7 @@ function renderAttackTable() {
       .replace(/>/g, '&gt;');
 
     return `
-      <tr data-id="${evt.id}" class="dpi-table-row ${index === 0 ? 'flash-row' : ''} hover:bg-slate-900/80 transition cursor-pointer">
+      <tr data-id="${evt.id}" class="dpi-table-row hover:bg-slate-900/80 transition cursor-pointer">
         <td class="py-2.5 px-3 text-slate-400 whitespace-nowrap">${timeStr}</td>
         <td class="py-2.5 px-3 whitespace-nowrap">
           ${getAiBadge(evt)}
@@ -663,9 +884,9 @@ function renderAttackTable() {
           <div class="text-[10px] text-slate-400">${evt.originAsn}</div>
         </td>
         <td class="py-2.5 px-3 whitespace-nowrap">
-          <span class="text-rose-300 font-semibold">${evt.originCode}</span>
+          <span class="text-rose-300 font-semibold">${COUNTRY_FLAGS[evt.originCode] || ''} ${evt.originCode}</span>
           <span class="text-slate-500 mx-1">→</span>
-          <span class="text-emerald-300 font-semibold">${evt.destCity}</span>
+          <span class="text-emerald-300 font-semibold">${COUNTRY_FLAGS[evt.destCode] || ''} ${evt.destCity}</span>
         </td>
         <td class="py-2.5 px-3 whitespace-nowrap">
           <div class="font-bold text-amber-300">${evt.cve}</div>
@@ -733,37 +954,56 @@ function renderCveFeed(cves) {
 }
 
 // ============================================================================
-// 7. REAL-TIME TELEMETRY STREAM (SSE)
+// 8. REAL-TIME TELEMETRY STREAM (SSE)
 // ============================================================================
+let tickCounter = 0;
+
 function processIncomingEvent(evt, totalCount, todayBucket, currentMonthBucket) {
+  tickCounter++;
+
   if (totalCount) {
     document.getElementById('kpi-total-attacks').textContent = totalCount.toLocaleString('pt-BR');
   }
-  document.getElementById('kpi-eps').textContent = (41 + Math.random() * 16).toFixed(1);
+  document.getElementById('kpi-eps').textContent = (42 + Math.random() * 14).toFixed(1);
+
+  // Update Country Geopolitical Tallies
+  if (evt.originCode && attackerCountries[evt.originCode]) {
+    attackerCountries[evt.originCode].count += Math.floor(Math.random() * 5) + 1;
+    if (evt.isAiDriven) attackerCountries[evt.originCode].aiCount += Math.floor(Math.random() * 4) + 1;
+  }
+  if (evt.destCode && affectedTargetCountries[evt.destCode]) {
+    affectedTargetCountries[evt.destCode].count += Math.floor(Math.random() * 5) + 1;
+    if (evt.isAiDriven) affectedTargetCountries[evt.destCode].aiCount += Math.floor(Math.random() * 4) + 1;
+  }
+
+  // Refresh country leaderboards smoothly every 2 ticks
+  if (tickCounter % 2 === 0) {
+    renderCountryLeaderboards();
+  }
 
   updateTodayAndCurrentMonthLive(todayBucket, currentMonthBucket);
 
-  const ticker = document.getElementById('globe-live-ticker');
-  if (ticker) {
-    const badge = evt.isAiDriven
-      ? `<span class="px-2 py-0.5 rounded bg-purple-500/25 text-purple-300 border border-purple-500/40 font-bold text-[10px]">🤖 IA (${evt.aiConfidence}%)</span>`
-      : `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-bold text-[10px]">⚙️ BOT</span>`;
-    ticker.innerHTML = `${badge} <span class="text-amber-300 font-bold">[${evt.cve}]</span> <span class="text-white">${evt.sourceIp} (${evt.originCode}) → ${evt.destCity}</span>`;
+  // Update ticker text smoothly without replacing parent container
+  const badgeEl = document.getElementById('ticker-badge');
+  const textEl = document.getElementById('ticker-text');
+  if (badgeEl && textEl) {
+    badgeEl.textContent = evt.isAiDriven ? `🤖 IA (${evt.aiConfidence}%)` : '⚙️ BOT';
+    badgeEl.className = evt.isAiDriven
+      ? 'px-2 py-0.5 rounded bg-purple-500/25 text-purple-300 border border-purple-500/40 font-bold text-[10px]'
+      : 'px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-bold text-[10px]';
+    textEl.innerHTML = `<b class="text-amber-300">[${evt.cve}]</b> ${COUNTRY_FLAGS[evt.originCode] || ''} ${evt.sourceIp} (${evt.originCode}) → ${COUNTRY_FLAGS[evt.destCode] || ''} ${evt.destCity}`;
   }
 
-  activeArcs.push(evt);
-  if (activeArcs.length > 26) activeArcs.shift();
-  world.arcsData([...activeArcs]);
-
-  activeRings.push({ lat: evt.destLat, lng: evt.destLng, color: evt.isAiDriven ? '#a855f7' : '#ff2a5f' });
-  if (activeRings.length > 20) activeRings.shift();
-  world.ringsData([...activeRings]);
+  // Spawn smooth CheckPoint-style missile arc on the 3D Globe
+  spawnSmoothCheckPointArc(evt);
 
   if (!isStreamPaused) {
     allEvents.unshift(evt);
     if (allEvents.length > 80) allEvents.pop();
-    renderCompactLiveFeed();
-    renderAttackTable();
+    prependSmoothCompactFeedItem(evt);
+    if (tickCounter % 2 === 0) {
+      renderAttackTable();
+    }
   }
 }
 
@@ -778,7 +1018,7 @@ function connectTelemetryStream() {
         honeypotPoints = (data.honeypots || []).map(h => ({ ...h, color: '#00ff9d' }));
         world.pointsData(honeypotPoints);
 
-        activeArcs = allEvents.slice(0, 18);
+        activeArcs = allEvents.slice(0, 14);
         world.arcsData(activeArcs);
 
         if (data.totalCount) {
@@ -795,7 +1035,8 @@ function connectTelemetryStream() {
         if (data.cves) renderCveFeed(data.cves);
         if (data.internationalNews) renderInternationalNews(data.internationalNews);
 
-        renderCompactLiveFeed();
+        renderCountryLeaderboards();
+        initCompactLiveFeed();
         renderAttackTable();
       } else if (data.type === 'attack') {
         processIncomingEvent(data.event, data.totalCount, data.todayBucket, data.currentMonthBucket);
@@ -809,7 +1050,7 @@ function connectTelemetryStream() {
 connectTelemetryStream();
 
 // ============================================================================
-// 8. UI CONTROLS
+// 9. UI CONTROLS
 // ============================================================================
 document.getElementById('btn-toggle-rotate')?.addEventListener('click', () => {
   isGlobeRotating = !isGlobeRotating;
@@ -836,11 +1077,11 @@ document.getElementById('btn-simulate-attack')?.addEventListener('click', async 
   const aiPayload = {
     sourceIp: '185.220.101.77',
     originCountry: 'Autonomous AI Node',
-    originCode: 'AI-NET',
-    originCity: 'Frankfurt-Cluster',
+    originCode: 'RU',
+    originCity: 'Moscow-Cluster',
     originAsn: 'AS60729 LLM-Swarm',
-    srcLat: 50.1109,
-    srcLng: 8.6821,
+    srcLat: 55.7558,
+    srcLng: 37.6173,
     destCity: 'São Paulo',
     destCountry: 'Brazil',
     destCode: 'BR',
