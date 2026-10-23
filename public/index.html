@@ -171,11 +171,6 @@
             <i data-lucide="bot" class="w-4 h-4"></i>
             Simular Ataque de IA Ao Vivo
           </button>
-
-          <button id="btn-open-sensor-modal" class="px-3 py-2 rounded-xl text-xs font-mono-code bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-1.5 cursor-pointer">
-            <i data-lucide="terminal" class="w-4 h-4"></i>
-            Sensor PHP
-          </button>
         </div>
       </div>
 
@@ -690,32 +685,6 @@
       <div class="pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono-code text-slate-400">
         <span>Telemetria DPI Verificada</span>
         <button id="btn-close-drawer-bottom" class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white cursor-pointer">Fechar Inspeção</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: COMO PLUGAR SEU SERVIDOR PHP REAL -->
-  <div id="sensor-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-4">
-    <div class="soc-card max-w-2xl w-full rounded-2xl p-6 border border-cyan-500/40">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-        <div class="flex items-center gap-2">
-          <i data-lucide="cpu" class="w-5 h-5 text-emerald-400"></i>
-          <h3 class="font-display text-base font-bold text-white">
-            Agente Sensor PHP Real (`honeypot-sensor.php`)
-          </h3>
-        </div>
-        <button id="btn-close-sensor-modal" class="text-slate-400 hover:text-white cursor-pointer">✕</button>
-      </div>
-      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <p>
-          O arquivo <code class="text-emerald-400 font-mono-code">honeypot-sensor.php</code> na raiz do projeto detecta ataques ao vivo em qualquer servidor PHP e envia a telemetria para este painel.
-        </p>
-        <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono-code text-[11px] text-cyan-300 overflow-x-auto">
-          <div># Teste via PowerShell / cURL enviando um ataque de Agente IA:</div>
-          <div class="mt-1 text-emerald-400">
-            Invoke-RestMethod -Uri "http://localhost:4000/api/ingest" -Method POST -ContentType "application/json" -Body '{"sourceIp":"185.220.101.9","originCountry":"Russia","originCode":"RU","cve":"CVE-2024-4577","category":"RCE","isAiDriven":true,"aiType":"Agente LLM Autônomo (Polymorphic)","attackName":"Live AI Exploit via Terminal","uri":"/index.php?%ADd+allow_url_include=1","payload":"&lt;?php system(\"whoami\"); ?&gt;"}'
-          </div>
-        </div>
       </div>
     </div>
   </div>

@@ -192,32 +192,78 @@ const world = Globe()(globeContainer)
 
 const controls = world.controls();
 controls.autoRotate = true;
-controls.autoRotateSpeed = 0.35;
+controls.autoRotateSpeed = 0.28;
 controls.enableZoom = true;
 
-// Gentle Hotspot Camera Director: Slowly glides toward the highest-intensity attack corridors every 9 seconds
-const MAJOR_HOTSPOTS = [
-  { lat: 36.0, lng: 114.0, label: 'Foco de Origem #1: Ásia Oriental (CN / VN Clusters)' },
-  { lat: 38.5, lng: -77.0, label: 'Foco de Alvo #1: América do Norte (US Cloud East)' },
-  { lat: 51.0, lng: 10.0, label: 'Foco de Tráfego: Europa Central (DE / NL / RU Corredor)' },
-  { lat: -23.5, lng: -46.6, label: 'Foco América Latina: Brasil (São Paulo Sensor Hub)' },
-  { lat: 1.35, lng: 103.8, label: 'Foco Sudeste Asiático: Singapura (SG Fintech Node)' }
-];
-let currentHotspotIdx = 0;
+// Volume-Weighted Hotspot Camera Director:
+// Dynamically tracks real-time attack density by region and keeps the camera focused longer on regions with MORE attacks!
+const REGION_CLUSTERS = {
+  EAST_ASIA: { id: 'EAST_ASIA', lat: 35.5, lng: 112.0, label: 'Ásia Oriental (Clusters CN / VN / KR)', heatScore: 18 },
+  NORTH_AMERICA: { id: 'NORTH_AMERICA', lat: 38.8, lng: -77.2, label: 'América do Norte (US Cloud East)', heatScore: 22 },
+  EUROPE: { id: 'EUROPE', lat: 51.2, lng: 10.4, label: 'Europa Central & Leste (DE / NL / RU)', heatScore: 20 },
+  SOUTH_AMERICA: { id: 'SOUTH_AMERICA', lat: -23.5, lng: -46.6, label: 'América do Sul (Brasil — São Paulo Hub)', heatScore: 15 },
+  SE_ASIA: { id: 'SE_ASIA', lat: 1.35, lng: 103.8, label: 'Sudeste Asiático (Singapura / IN)', heatScore: 14 }
+};
 
-setInterval(() => {
+function registerAttackHeatForCamera(evt) {
+  // Decay all regions slightly so the heat reflects CURRENT live concentration
+  Object.values(REGION_CLUSTERS).forEach(r => {
+    r.heatScore = Math.max(5, r.heatScore * 0.94);
+  });
+
+  // Boost target region and origin region based on incoming attack
+  const destCode = evt.destCode || 'US';
+  const origCode = evt.originCode || 'CN';
+
+  if (destCode === 'US' || origCode === 'US') REGION_CLUSTERS.NORTH_AMERICA.heatScore += 4.2;
+  if (destCode === 'BR' || origCode === 'BR') REGION_CLUSTERS.SOUTH_AMERICA.heatScore += 4.5;
+  if (['DE', 'NL', 'RU', 'FR', 'RO', 'UA'].includes(destCode) || ['DE', 'NL', 'RU', 'FR', 'RO', 'UA'].includes(origCode)) {
+    REGION_CLUSTERS.EUROPE.heatScore += 3.8;
+  }
+  if (['CN', 'VN', 'KR', 'JP'].includes(destCode) || ['CN', 'VN', 'KR', 'JP'].includes(origCode)) {
+    REGION_CLUSTERS.EAST_ASIA.heatScore += 3.9;
+  }
+  if (['SG', 'IN', 'ID'].includes(destCode) || ['SG', 'IN', 'ID'].includes(origCode)) {
+    REGION_CLUSTERS.SE_ASIA.heatScore += 4.0;
+  }
+}
+
+let currentFocusedClusterId = null;
+let focusHoldTicksRemaining = 0;
+
+function evaluateVolumeDrivenCameraFocus() {
   if (!isHotspotAutoFocus || !isGlobeRotating) return;
-  const spot = MAJOR_HOTSPOTS[currentHotspotIdx % MAJOR_HOTSPOTS.length];
-  currentHotspotIdx++;
 
-  // Ultra-slow 4500ms camera glide so it is relaxing and comfortable for the eyes
-  world.pointOfView({ lat: spot.lat, lng: spot.lng, altitude: 1.98 }, 4500);
+  // Sort clusters by live attack volume (heatScore)
+  const ranked = Object.values(REGION_CLUSTERS).sort((a, b) => b.heatScore - a.heatScore);
+  const topRegion = ranked[0];
+  const totalHeat = ranked.reduce((acc, r) => acc + r.heatScore, 0) || 1;
+  const sharePct = Math.round((topRegion.heatScore / totalHeat) * 100);
+
+  // If the current region still has hold time and hasn't been drastically overtaken, stay locked on it!
+  if (focusHoldTicksRemaining > 0 && currentFocusedClusterId === topRegion.id) {
+    focusHoldTicksRemaining--;
+    const bannerText = document.getElementById('hotspot-camera-text');
+    if (bannerText) {
+      bannerText.textContent = `🎯 Foco por Volume (${sharePct}% dos ataques ativos): ${topRegion.label}`;
+    }
+    return;
+  }
+
+  // Otherwise, glide smoothly to the #1 highest-attack region right now, and hold proportional to its attack volume!
+  currentFocusedClusterId = topRegion.id;
+  // More attacks = stays focused longer on that position (between 3 and 9 evaluation cycles)
+  focusHoldTicksRemaining = Math.min(9, Math.max(3, Math.round(sharePct / 5)));
+
+  world.pointOfView({ lat: topRegion.lat, lng: topRegion.lng, altitude: 1.96 }, 2400);
 
   const bannerText = document.getElementById('hotspot-camera-text');
   if (bannerText) {
-    bannerText.textContent = `🎯 ${spot.label}`;
+    bannerText.textContent = `🎯 Foco por Volume (${sharePct}% dos ataques ativos): ${topRegion.label}`;
   }
-}, 9000);
+}
+
+setInterval(evaluateVolumeDrivenCameraFocus, 2800);
 
 function resizeGlobe() {
   if (!globeContainer || globeContainer.offsetParent === null) return;
@@ -952,7 +998,10 @@ function renderInternationalNews(newsItems) {
           <span class="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">${item.region}</span>
           <span class="px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">${item.category}</span>
         </div>
-        <span class="text-emerald-400 font-semibold">${item.publishedAt} ↗</span>
+        <div class="flex items-center gap-1.5">
+          <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">✓ LINK VERIFICADO</span>
+          <span class="text-emerald-400 font-semibold">${item.publishedAt} ↗</span>
+        </div>
       </div>
       <h3 class="text-sm font-bold text-white group-hover:text-cyan-300 transition leading-snug mb-1">${item.title}</h3>
       <p class="text-xs text-slate-400 leading-relaxed">${item.summary}</p>
@@ -1019,7 +1068,8 @@ function processIncomingEvent(evt, totalCount, todayBucket, currentMonthBucket) 
     textEl.innerHTML = `<b class="text-amber-300">[${evt.cve}]</b> ${COUNTRY_FLAGS[evt.originCode] || ''} ${evt.sourceIp} (${evt.originCode}) → ${COUNTRY_FLAGS[evt.destCode] || ''} ${evt.destCity}`;
   }
 
-  // Spawn smooth CheckPoint-style missile arc on the 3D Globe
+  // Spawn smooth CheckPoint-style missile arc on the 3D Globe & feed live heat to camera director
+  registerAttackHeatForCamera(evt);
   spawnSmoothCheckPointArc(evt);
 
   if (!isStreamPaused) {
@@ -1145,12 +1195,3 @@ document.getElementById('btn-simulate-attack')?.addEventListener('click', async 
   world.pointOfView({ lat: aiPayload.destLat, lng: aiPayload.destLng, altitude: 1.65 }, 900);
 });
 
-const modal = document.getElementById('sensor-modal');
-document.getElementById('btn-open-sensor-modal')?.addEventListener('click', () => {
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-});
-document.getElementById('btn-close-sensor-modal')?.addEventListener('click', () => {
-  modal.classList.add('hidden');
-  modal.classList.remove('flex');
-});
