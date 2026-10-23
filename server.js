@@ -186,52 +186,52 @@ const PHP_ATTACK_SIGNATURES = [
   }
 ];
 
-// Curated High-Impact International Cybersecurity News on PHP & AI Attacks
+// Curated High-Impact International Cybersecurity News on PHP & AI Attacks (Direct Article Permalinks!)
 const FALLBACK_INTERNATIONAL_NEWS = [
   {
     source: 'BleepingComputer',
     region: 'GLOBAL / US',
     category: 'AI-DRIVEN RCE',
-    title: 'Autonomous AI Agents Now Weaponizing PHP-CGI (CVE-2024-4577) Within Minutes of Public Disclosure',
-    summary: 'Threat intelligence teams report that LLM-powered exploit bots are automatically mutating soft-hyphen PHP-CGI payloads to bypass traditional WAF signatures across cloud data centers.',
-    url: 'https://www.bleepingcomputer.com/news/security/',
-    publishedAt: 'LIVE FEED'
+    title: 'Critical PHP-CGI Vulnerability (CVE-2024-4577) Actively Exploited by Ransomware & Autonomous Bots Within Hours',
+    summary: 'Threat intelligence teams report that exploit bots are automatically mutating soft-hyphen PHP-CGI payloads to bypass traditional WAF signatures across Windows and XAMPP servers.',
+    url: 'https://www.bleepingcomputer.com/news/security/critical-php-bug-exploited-within-hours-to-drop-malware-ransomware/',
+    publishedAt: 'ARTICLE'
   },
   {
     source: 'The Hacker News',
     region: 'EUROPE / ASIA',
     category: 'PHP FILTER CHAIN',
-    title: 'CNEXT (CVE-2024-2961): AI-Generated glibc iconv() Chains Turn Standard PHP File Reads into Instant RCE',
-    summary: 'Attackers are using automated exploit synthesizers to chain unauthenticated LFI flaws in PHP frameworks with php://filter/convert.iconv heap overflows.',
-    url: 'https://thehackernews.com/',
-    publishedAt: 'INTERNATIONAL'
+    title: 'CNEXT (CVE-2024-2961): GLIBC iconv() Buffer Overflow Turns Standard PHP File Reads into Remote Code Execution',
+    summary: 'Security researchers warn that unauthenticated LFI flaws in PHP frameworks can be chained with php://filter/convert.iconv heap overflows to achieve instant RCE.',
+    url: 'https://thehackernews.com/2024/05/linux-glibc-vulnerability-could-let.html',
+    publishedAt: 'ARTICLE'
   },
   {
     source: 'SANS Internet Storm Center',
     region: 'GLOBAL SENSORS',
     category: 'SURGE ALERT',
-    title: '214% Surge in PHP & Laravel /.env Harvesting Over the Last 6 Months Driven by Polymorphic Scanners',
-    summary: 'SANS DShield honeypots recorded a dramatic escalation in automated HTTP probes targeting exposed .env files to steal cloud keys, database credentials, and AI API tokens.',
-    url: 'https://isc.sans.edu/',
-    publishedAt: 'SANS ADVISORY'
+    title: 'SANS ISC Diary: Mass Scanning & Active Exploitation of PHP-CGI Argument Injection (CVE-2024-4577)',
+    summary: 'SANS DShield honeypots recorded a dramatic escalation in automated HTTP POST probes targeting PHP CGI endpoints and exposed Laravel .env configuration files.',
+    url: 'https://isc.sans.edu/diary/30994',
+    publishedAt: 'SANS DIARY'
   },
   {
     source: 'Wordfence Threat Intel',
     region: 'GLOBAL CMS',
     category: 'CMS EXPLOIT',
-    title: 'Over 5.5 Million Attacks Blocked Targeting Critical SQL Injection & Polymorphic Webshells in PHP Plugins',
-    summary: 'Botnets are weaponizing zero-day vulnerabilities in popular PHP plugins and XML-RPC endpoints to inject AI-obfuscated Alfa/WSO webshells that evade static signature scanners.',
-    url: 'https://www.wordfence.com/blog/',
-    publishedAt: 'THREAT REPORT'
+    title: 'Over 5.5 Million Attacks Blocked Targeting Critical SQL Injection & Admin Takeover in WordPress Automatic Plugin',
+    summary: 'Botnets are weaponizing CVE-2024-27956 in PHP plugins to execute arbitrary SQL queries, create rogue administrator accounts, and plant obfuscated PHP webshells.',
+    url: 'https://www.wordfence.com/blog/2024/04/millions-of-attacks-targeting-critical-sql-injection-vulnerability-in-wordpress-automatic-plugin/',
+    publishedAt: 'REPORT'
   },
   {
     source: 'CISA Known Exploited (KEV)',
     region: 'US / CISA GOV',
     category: 'FEDERAL ALERT',
-    title: 'CISA Orders Federal Agencies to Patch Actively Exploited PHP CGI & Composer PHPUnit RCE Flaws',
-    summary: 'U.S. Cybersecurity and Infrastructure Security Agency added critical PHP remote code execution flaws to its Known Exploited Vulnerabilities catalog following widespread automated scanning.',
-    url: 'https://www.cisa.gov/known-exploited-vulnerabilities-catalog',
-    publishedAt: 'CISA KEV'
+    title: 'CISA Adds PHP-CGI Argument Injection Vulnerability (CVE-2024-4577) to Known Exploited Catalog',
+    summary: 'U.S. Cybersecurity and Infrastructure Security Agency mandates immediate patching following widespread active exploitation against internet-facing PHP deployments.',
+    url: 'https://www.cisa.gov/news-events/alerts/2024/06/10/cisa-adds-one-known-exploited-vulnerability-catalog',
+    publishedAt: 'CISA ALERT'
   }
 ];
 
@@ -331,16 +331,19 @@ function extractRssItems(xmlText, sourceName, regionLabel) {
   while ((match = itemRegex.exec(xmlText)) !== null && items.length < 8) {
     const block = match[1];
     const titleMatch = block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>|<title>([\s\S]*?)<\/title>/i);
-    const linkMatch = block.match(/<link>([\s\S]*?)<\/link>/i);
+    const linkMatch = block.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>|<link>([\s\S]*?)<\/link>/i);
+    const guidMatch = block.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
     const descMatch = block.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>|<description>([\s\S]*?)<\/description>/i);
     const pubDateMatch = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i);
 
     const rawTitle = (titleMatch ? (titleMatch[1] || titleMatch[2] || '') : '').replace(/<[^>]+>/g, '').trim();
     const rawDesc = (descMatch ? (descMatch[1] || descMatch[2] || '') : '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
-    const link = (linkMatch ? linkMatch[1] : 'https://thehackernews.com').trim();
+    const rawLink = (linkMatch ? (linkMatch[1] || linkMatch[2] || '') : '').trim();
+    const rawGuid = (guidMatch ? guidMatch[1] : '').trim();
+    const articleUrl = /^https?:\/\//i.test(rawLink) ? rawLink : (/^https?:\/\//i.test(rawGuid) ? rawGuid : '');
     const pubDate = pubDateMatch ? new Date(pubDateMatch[1]).toISOString().split('T')[0] : 'RECENT';
 
-    if (rawTitle) {
+    if (rawTitle && articleUrl && articleUrl.split('/').filter(Boolean).length > 2) {
       const isRelevant = /(php|laravel|wordpress|symfony|composer|cve-|exploit|rce|vulnerability|web|botnet|backdoor|sql|hack|malware|ransomware|ai)/i.test(rawTitle + ' ' + rawDesc);
       if (isRelevant) {
         items.push({
@@ -349,7 +352,7 @@ function extractRssItems(xmlText, sourceName, regionLabel) {
           category: /ai|llm|autonomous/i.test(rawTitle + ' ' + rawDesc) ? 'AI THREAT INTEL' : 'PHP / WEB EXPLOIT',
           title: rawTitle,
           summary: rawDesc.slice(0, 175) + (rawDesc.length > 175 ? '...' : ''),
-          url: link,
+          url: articleUrl,
           publishedAt: pubDate
         });
       }

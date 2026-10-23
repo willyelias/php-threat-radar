@@ -7,6 +7,7 @@ lucide.createIcons();
 // Global Dashboard State
 let isStreamPaused = false;
 let isGlobeRotating = true;
+let isHotspotAutoFocus = true;
 let filterKeyword = '';
 let aiFilterMode = 'ALL'; // ALL | AI_ONLY | LEGACY_ONLY
 let allEvents = [];
@@ -191,8 +192,32 @@ const world = Globe()(globeContainer)
 
 const controls = world.controls();
 controls.autoRotate = true;
-controls.autoRotateSpeed = 0.55;
+controls.autoRotateSpeed = 0.35;
 controls.enableZoom = true;
+
+// Gentle Hotspot Camera Director: Slowly glides toward the highest-intensity attack corridors every 9 seconds
+const MAJOR_HOTSPOTS = [
+  { lat: 36.0, lng: 114.0, label: 'Foco de Origem #1: Ásia Oriental (CN / VN Clusters)' },
+  { lat: 38.5, lng: -77.0, label: 'Foco de Alvo #1: América do Norte (US Cloud East)' },
+  { lat: 51.0, lng: 10.0, label: 'Foco de Tráfego: Europa Central (DE / NL / RU Corredor)' },
+  { lat: -23.5, lng: -46.6, label: 'Foco América Latina: Brasil (São Paulo Sensor Hub)' },
+  { lat: 1.35, lng: 103.8, label: 'Foco Sudeste Asiático: Singapura (SG Fintech Node)' }
+];
+let currentHotspotIdx = 0;
+
+setInterval(() => {
+  if (!isHotspotAutoFocus || !isGlobeRotating) return;
+  const spot = MAJOR_HOTSPOTS[currentHotspotIdx % MAJOR_HOTSPOTS.length];
+  currentHotspotIdx++;
+
+  // Ultra-slow 4500ms camera glide so it is relaxing and comfortable for the eyes
+  world.pointOfView({ lat: spot.lat, lng: spot.lng, altitude: 1.98 }, 4500);
+
+  const bannerText = document.getElementById('hotspot-camera-text');
+  if (bannerText) {
+    bannerText.textContent = `🎯 ${spot.label}`;
+  }
+}, 9000);
 
 function resizeGlobe() {
   if (!globeContainer || globeContainer.offsetParent === null) return;
@@ -1055,7 +1080,18 @@ connectTelemetryStream();
 document.getElementById('btn-toggle-rotate')?.addEventListener('click', () => {
   isGlobeRotating = !isGlobeRotating;
   controls.autoRotate = isGlobeRotating;
-  document.getElementById('rotate-label').textContent = `Auto-Rotação: ${isGlobeRotating ? 'ON' : 'OFF'}`;
+  document.getElementById('rotate-label').textContent = `Girar Mapa: ${isGlobeRotating ? 'ON' : 'OFF'}`;
+});
+
+document.getElementById('btn-toggle-hotspot-focus')?.addEventListener('click', () => {
+  isHotspotAutoFocus = !isHotspotAutoFocus;
+  document.getElementById('hotspot-focus-label').textContent = `Foco nos Hotspots: ${isHotspotAutoFocus ? 'ON' : 'OFF'}`;
+  const bannerText = document.getElementById('hotspot-camera-text');
+  if (bannerText) {
+    bannerText.textContent = isHotspotAutoFocus
+      ? 'Foco Orbital Suave: Monitorando Corredores Globais'
+      : 'Câmera Livre: Controle Manual pelo Mouse';
+  }
 });
 
 document.getElementById('btn-pause-stream')?.addEventListener('click', (e) => {
